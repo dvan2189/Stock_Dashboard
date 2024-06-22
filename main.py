@@ -15,10 +15,12 @@ app.layout = html.Div(children=[
     html.H4("Please enter the stock name"),
     dcc.Input(id='input', value='NVDA', type='text', maxLength = 5),
     html.Div(id='company-name'),
+    html.Div(id="company-current-price"),
+    html.Div(id='company-industry'),
     html.Div(id="company-dividend"),
     html.Div(id="company-recommend", style = {'font-size': '20px'}),
     html.Div(id='output-graph')
-])
+],style = {'background': '#F3F4E0'})
 
 # Define the callback to update the input field to uppercase
 @app.callback(
@@ -34,6 +36,8 @@ def update_input_to_uppercase(input_value):
 # callback Decorator 
 @app.callback(
 	[Output(component_id='company-name', component_property='children'),
+	Output(component_id='company-current-price', component_property='children'),
+	Output(component_id='company-industry', component_property='children'),
 	Output(component_id='company-dividend', component_property='children'),
 	Output(component_id='company-recommend', component_property='children'),
 	Output(component_id='output-graph', component_property='children')],
@@ -52,15 +56,25 @@ def update_graph(input_data):
 	try:
 		
 		df = yf.download(input_data, start, end)
+		df_reset = df.reset_index()
+		#df_reset.rename(columns={'DataFrame:            Date': 'Date'}, inplace=True)
+		
+		#print(df_reset.columns.tolist())
+		print(f"DataFrame:\n {df_reset}")
+		
+		company_closing_price = df_reset['Close'].iloc[-1]
 
 		ticker = yf.Ticker(input_data)
 		company_info = ticker.info
-		#print(company_info)
+		
 		company_name = company_info["longName"]
-
+		company_recent_price = company_info.get("currentPrice",company_closing_price )
 		company_dividend = round(company_info.get("dividendYield",0)*100,2)
 		#company_dividend  = round(company_info["dividendYield"]*100,2)
 		company_recommend = company_info.get("recommendationKey", "No recommendation at this time ")
+		company_industry = company_info.get("industry", "Others")
+
+		currency = company_info["financialCurrency"]
 
 		if company_recommend == "buy":
 			color = "blue"
@@ -72,13 +86,19 @@ def update_graph(input_data):
 			color = 'grey' 
 
 		company_name_div = html.Div(f"Company Name: {company_name}")
+		company_recent_price_div = html.Div(f"Recently Price: ${company_recent_price} {currency}")
+		company_industry_div = html.Div(f"Industry: {company_industry}")
 		company_dividend_div = html.Div(f"Dividend: {company_dividend}%")
 		recommend_div = html.Div(f"Recommendation: {company_recommend.capitalize()}", style ={'color':color})
 
 		graph = dcc.Graph(id ="example", figure ={
-            'data':[{'x':df.index, 'y':df.Close, 'type':'line', 'name':input_data}],
+            'data':[{'x':df_reset.Date, 'y':df_reset.Close, 'type':'line', 'name':input_data}],
             'layout':{
-                'title':input_data
+                'title':input_data,
+                'plot_bgcolor': '#E0EAF4',
+                'font': {
+                	'color': 'black'
+                }
             }
         })
 		
@@ -87,7 +107,7 @@ def update_graph(input_data):
 		company_name_div = html.Div(f"Error retrieving company name: {str(e)}")
 		graph = html.Div("Error retrieving stock data.")
 
-	return company_name_div, company_dividend_div, recommend_div, graph
+	return company_name_div, company_recent_price_div, company_industry_div, company_dividend_div, recommend_div, graph
 
 if __name__ == '__main__':
     app.run_server(debug = True)
